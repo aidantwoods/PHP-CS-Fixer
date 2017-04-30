@@ -172,6 +172,10 @@ class Foo
                 ->setAllowedValues([self::LINE_NEXT, self::LINE_SAME])
                 ->setDefault(self::LINE_SAME)
                 ->getOption(),
+            (new FixerOptionBuilder('position_after_return_type_hint', 'whether the opening brace should be placed on "next" or "same" line after a function that has a return type hint.'))
+                ->setAllowedValues([self::LINE_NEXT, self::LINE_SAME])
+                ->setDefault(self::LINE_SAME)
+                ->getOption(),
         ]);
     }
 
@@ -450,7 +454,7 @@ class Foo
 
                 $tokens->ensureWhitespaceAtIndex($startBraceIndex - 1, 1, $ensuredWhitespace);
             } elseif (
-                $token->isGivenKind(T_FUNCTION) && !$tokensAnalyzer->isLambda($index)
+                $token->isGivenKind(T_FUNCTION) && (self::LINE_NEXT === $this->configuration['position_after_return_type_hint'] || !$tokensAnalyzer->isLambda($index))
                 || (
                     self::LINE_NEXT === $this->configuration['position_after_control_structures'] && $token->isGivenKind($controlTokens)
                     || (self::LINE_NEXT === $this->configuration['position_after_anonymous_constructs']
@@ -474,7 +478,13 @@ class Foo
 
                 if (!$isAnonymousClass && $prevToken->isWhitespace() && false !== strpos($prevToken->getContent(), "\n")) {
                     if (!$tokens[$startBraceIndex - 2]->isComment()) {
-                        $tokens->ensureWhitespaceAtIndex($startBraceIndex - 1, 1, ' ');
+                        $tokens->ensureWhitespaceAtIndex(
+                            $startBraceIndex - 1,
+                            1,
+                            self::LINE_NEXT === $this->configuration['position_after_return_type_hint'] && $token->isGivenKind(T_FUNCTION) && ':' === $tokens[$tokens->getNextNonWhitespace($closingParenthesisIndex)]->getContent() ?
+                                $this->whitespacesConfig->getLineEnding().$indent
+                                : ' '
+                        );
                     }
                 } else {
                     if (
@@ -484,6 +494,7 @@ class Foo
                             || $token->isGivenKind($classyTokens) && !$tokensAnalyzer->isAnonymousClass($index)
                         )
                         && !$tokens[$tokens->getPrevNonWhitespace($startBraceIndex)]->isComment()
+                        && !(self::LINE_NEXT === $this->configuration['position_after_return_type_hint'] && $token->isGivenKind(T_FUNCTION) && ':' === $tokens[$tokens->getNextNonWhitespace($closingParenthesisIndex)]->getContent())
                     ) {
                         $ensuredWhitespace = ' ';
                     } else {
